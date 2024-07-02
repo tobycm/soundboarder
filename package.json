@@ -1,0 +1,18 @@
+{
+  "name": "soundboarder",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts",
+    "dev": "tsx watch index.ts"
+  },
+  "keywords": [],
+  "author": "tobycm",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.15.3",
+    "moonlink.js": "^3.6.64",
+    "tsx": "^4.16.0"
+  }
+}
