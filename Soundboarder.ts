@@ -1,5 +1,6 @@
 import { Client, ClientOptions } from "discord.js";
 import { createClient } from "redis";
+import { RedisClient } from "./common";
 
 interface SoundboarderOptions {
   discord: ClientOptions;
@@ -23,5 +24,5 @@ export default class Soundboarder extends Client {
     return;
   }
 
-  db: ReturnType<typeof createClient>;
+  db: RedisClient;
 }

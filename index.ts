@@ -1,11 +1,11 @@
 import { GatewayIntentBits } from "discord.js";
-import { createClient } from "redis";
 import Soundboarder from "./Soundboarder";
 import commands from "./commands";
+import { RedisClient } from "./common";
 
 declare module "discord.js" {
-  interface Client {
-    db: ReturnType<typeof createClient>;
+  export interface Client {
+    db: RedisClient;
   }
 }
 

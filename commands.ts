@@ -1,4 +1,5 @@
-import { AutocompleteInteraction, ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+import { AutocompleteInteraction, ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from "discord.js";
+import { getButtons, Scope } from "./common";
 
 interface Command {
   data: SlashCommandBuilder;
@@ -18,43 +19,30 @@ const newCommandData = new SlashCommandBuilder().setName("new").setDescription("
 newCommandData
   .addStringOption((option) => option.setName("name").setDescription("Name of the soundboard button").setRequired(true))
   .addAttachmentOption((option) => option.setName("file").setDescription("Sound file to play. Max 15s or 1MB").setRequired(true))
+  // .addStringOption((option) => option.setName("emoji").setDescription("Emoji to use for the button").setRequired(false))
   .addStringOption((option) =>
     option
-      .setName("scope")
-      .setDescription("Scope of the button (Only you is default)")
+      .setName("scopes")
+      .setDescription("Scopes of the button (Only you is default) (multiple scopes can be selected, seperated by commas)")
       .setRequired(false)
       .setChoices([
-        {
-          name: "Server",
-          value: "guild",
-        },
-        {
-          name: "Channel",
-          value: "channel",
-        },
-        {
-          name: "Role",
-          value: "role",
-        },
-        {
-          name: "Member (only for you in this server)",
-          value: "member",
-        },
-        {
-          name: "Only you",
-          value: "user",
-        },
+        { name: "Server", value: "guild" },
+        { name: "Channel", value: "channel" },
+        { name: "Role", value: "role" },
+        { name: "Member (only for you in this server)", value: "member" },
+        { name: "Only you", value: "user" },
       ])
   )
   .addRoleOption((option) => option.setName("role").setDescription("Role to set the button to (if using role scope)").setRequired(false));
 
 commands.push({
   data: newCommandData,
-  run: async (interaction) => {
+  async run(interaction) {
     const name = interaction.options.getString("name", true);
     const file = interaction.options.getAttachment("file", true);
     const scope = interaction.options.getString("scope") || "user";
     const role = interaction.options.getRole("role");
+    // const emoji = interaction.options.getString("emoji");
 
     if (!file) return interaction.reply("No file provided.");
 
@@ -67,25 +55,52 @@ commands.push({
 
     if (scope !== "user") if (!interaction.inGuild()) return interaction.reply("This scope can only be used in a server.");
     if (scope === "role") if (!role) return interaction.reply("No role provided for role scope.");
+    if (scope === "channel" && (!(interaction.member instanceof GuildMember) || !interaction.member.voice.channel?.id))
+      return interaction.reply("You must be in a voice channel to use channel scope.");
 
-    const id =
+    const id = `${
       scope === "guild"
         ? interaction.guild!.id
         : scope === "channel"
-        ? interaction.channel!.id
+        ? // @ts-ignore ts is not that smart yet
+          interaction.member.voice.channel.id
         : scope === "role"
         ? role?.id
         : scope === "member"
-        ? `${interaction.guild!.id}:${interaction.user.id}`
-        : interaction.user.id;
+        ? `${interaction.guild!.id}-${interaction.user.id}`
+        : interaction.user.id
+    }:${name}`;
 
-    interaction.client.db.hSet(scope, {
-      name,
-      url: file.url,
-    });
+    interaction.client.db.rPush(
+      id,
+      JSON.stringify({
+        name,
+        file: file.url,
+        emoji: "🔊",
+      })
+    );
 
     // Do something with the file
     await interaction.reply(`Created new soundboard button: ${name}`);
+  },
+});
+
+const deleteCommandData = new SlashCommandBuilder().setName("delete").setDescription("Delete soundboard button");
+
+commands.push({
+  data: deleteCommandData,
+  async run(interaction) {
+    const scopes: Scope[] = ["user"];
+    if (interaction.inGuild()) scopes.push("guild", "channel", "role", "member");
+
+    const buttons = await getButtons(
+      interaction.client.db,
+      interaction,
+      scopes,
+      Array.from((interaction.member as GuildMember | undefined)?.roles.cache.values() ?? [])
+    );
+
+    if (buttons.length === 0) return interaction.reply("No buttons found.");
   },
 });
 
