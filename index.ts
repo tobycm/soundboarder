@@ -1,18 +1,28 @@
-import { GatewayIntentBits, GuildMember } from "discord.js";
+import { GatewayIntentBits } from "discord.js";
+import { createClient } from "redis";
 import Soundboarder from "./Soundboarder";
 import commands from "./commands";
 
+declare module "discord.js" {
+  interface Client {
+    db: ReturnType<typeof createClient>;
+  }
+}
+
 // Creating an instance of the Discord.js client
 const client = new Soundboarder({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates],
+  discord: {
+    intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates],
+  },
+  redis: {
+    url: process.env.REDIS_URL,
+  },
 });
 
 const admins = process.env.ADMINS?.split(",") || [];
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
-  if (!message.inGuild()) return;
-  if (!(message.member instanceof GuildMember)) return;
 
   if (!admins.includes(message.author.id)) return;
 
@@ -39,8 +49,6 @@ client.on("interactionCreate", async (interaction) => {
   }
 
   if (!interaction.isChatInputCommand()) return;
-  if (!interaction.inGuild() || !interaction.channel) return;
-  if (!(interaction.member instanceof GuildMember)) return;
 
   const command = commands.find((cmd) => cmd.data.name === interaction.commandName);
   if (!command) return;
