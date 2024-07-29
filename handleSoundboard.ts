@@ -3,12 +3,11 @@ import {
   createAudioPlayer,
   createAudioResource,
   entersState,
-  getVoiceConnection,
   joinVoiceChannel,
   NoSubscriberBehavior,
   VoiceConnectionStatus,
 } from "@discordjs/voice";
-import { ButtonInteraction, GuildMember } from "discord.js";
+import { ButtonInteraction, GuildMember, inlineCode } from "discord.js";
 import { DBButton } from "./common";
 
 const players = new Map<string, AudioPlayer>();
@@ -16,30 +15,33 @@ const players = new Map<string, AudioPlayer>();
 export default async function handleSoundboard(interaction: ButtonInteraction) {
   // return minimalExample(interaction);
 
-  if (!interaction.guild) return interaction.reply("This command can only be used in a server.");
-  if (!(interaction.member instanceof GuildMember)) return interaction.reply("This command can only be used by a server member."); // should never happens tbh
+  await interaction.deferReply({ ephemeral: true });
 
-  if (!interaction.member.voice.channel) return interaction.reply("You must be in a voice channel to use the soundboard.");
+  if (!interaction.guild) return interaction.editReply("This command can only be used in a server.");
+  if (!(interaction.member instanceof GuildMember)) return interaction.editReply("This command can only be used by a server member."); // should never happens tbh
+
+  if (!interaction.member.voice.channel) return interaction.editReply("You must be in a voice channel to use the soundboard.");
 
   const button = (await interaction.client.db.hgetall(interaction.customId)) as unknown as DBButton;
-  if (!button) return interaction.reply("Button not found in database. It may have been deleted.");
+  if (!button) return interaction.editReply("Button not found in database. It may have been deleted.");
 
-  const resource = createAudioResource("/home/toby/Downloads/youtube_1fRq1QzcBRc_audio short.mp3");
+  const resource = createAudioResource(button.file);
 
   let player = players.get(interaction.guild.id);
-  if (player) return player.play(resource);
+  if (player) {
+    interaction.editReply(`Playing ${inlineCode(interaction.customId.split(":")[1])}.`);
+    return player.play(resource);
+  }
 
-  const connection =
-    getVoiceConnection(interaction.guild.id) ||
-    joinVoiceChannel({
-      adapterCreator: interaction.guild.voiceAdapterCreator,
-      channelId: interaction.member.voice.channel.id,
-      guildId: interaction.guild.id,
+  const connection = joinVoiceChannel({
+    adapterCreator: interaction.guild.voiceAdapterCreator,
+    channelId: interaction.member.voice.channel.id,
+    guildId: interaction.guild.id,
 
-      selfDeaf: true,
+    selfDeaf: true,
 
-      debug: true,
-    });
+    debug: true,
+  });
 
   connection.on(VoiceConnectionStatus.Disconnected, async () => {
     try {
@@ -59,23 +61,31 @@ export default async function handleSoundboard(interaction: ButtonInteraction) {
     players.delete(interaction.guild!.id);
   });
 
-  connection.on("debug", console.log);
-  connection.on("error", console.error);
+  // connection.on("debug", console.log);
+  // connection.on("error", console.error);
+
+  try {
+    await entersState(connection, VoiceConnectionStatus.Ready, 7500);
+  } catch (error) {
+    console.error(error);
+    connection.destroy();
+    return interaction.editReply("Failed to join voice channel.");
+  }
 
   player = createAudioPlayer({ behaviors: { noSubscriber: NoSubscriberBehavior.Stop }, debug: true });
 
-  player.on("debug", console.log);
-  player.on("error", console.error);
+  // player.on("debug", console.log);
+  // player.on("error", console.error);
 
   players.set(interaction.guild.id, player);
 
   connection.subscribe(player);
   try {
+    interaction.editReply(`Playing ${inlineCode(interaction.customId.split(":")[1])}.`);
     player.play(resource);
-    console.log("Playing sound.");
   } catch (error) {
     console.error(error);
-    return interaction.reply("Failed to play sound.");
+    return interaction.editReply("Failed to play sound.");
   }
 }
 

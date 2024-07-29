@@ -50,7 +50,7 @@ commands.push({
 
     if (!file) return interaction.reply("No file provided.");
     if (!file.contentType?.startsWith("audio/")) return interaction.reply("File is not an audio file.");
-    if (file.size > 1024 ** 2) return interaction.reply("File is too large. Max 1MB.");
+    if (file.size > 5 * 1024 ** 2) return interaction.reply("File is too large. Max 1MB.");
     // if (file.duration > 15) return interaction.reply("File is too long. Max 15s.");
 
     if (!["guild", "channel", "role", "member", "user"].includes(scope)) return interaction.reply("Invalid scope.");
