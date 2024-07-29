@@ -81,7 +81,7 @@ export function makeSoundboard(buttons: Button[]): ActionRowBuilder<ButtonBuilde
   let row = new ActionRowBuilder<ButtonBuilder>();
 
   for (const button of buttons) {
-    row.addComponents(new ButtonBuilder().setCustomId(button.name).setLabel(button.name).setStyle(ButtonStyle.Primary).setEmoji(button.emoji));
+    row.addComponents(new ButtonBuilder().setCustomId(button.id).setLabel(button.name).setStyle(ButtonStyle.Primary).setEmoji(button.emoji));
     if (row.components.length === 5) {
       rows.push(row);
       row = new ActionRowBuilder<ButtonBuilder>();
