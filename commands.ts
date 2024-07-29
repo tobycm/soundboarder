@@ -47,6 +47,7 @@ commands.push({
     // const emoji = interaction.options.getString("emoji");
 
     if (name.length > 40) return interaction.reply("Name is too long. Max 40 characters.");
+    if (name.includes(":") || name.includes("*")) return interaction.reply("Name cannot contain a colon (:) or an asterisk (*).");
 
     if (!file) return interaction.reply("No file provided.");
     if (!file.contentType?.startsWith("audio/")) return interaction.reply("File is not an audio file.");
@@ -75,6 +76,8 @@ commands.push({
     if (await interaction.client.db.exists(id)) return interaction.reply("Button already exists.");
 
     await interaction.client.db.hset(id, {
+      created: Date.now(),
+
       file: file.url,
       emoji: "🔊",
     });
@@ -99,8 +102,6 @@ commands.push({
       {
         scopes,
         roles: Array.from((interaction.member as GuildMember | undefined)?.roles.cache.values() ?? []),
-
-        limit: 20,
       }
     );
 

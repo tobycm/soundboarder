@@ -12,29 +12,30 @@ export type Includes<T extends readonly any[], U> = T extends [infer First, ...i
 
 export type Scope = "guild" | "channel" | "role" | "member" | "user";
 type URL = string;
+type Timestamp = number;
 
 export interface DBButton {
+  created: Timestamp;
+
   file: URL;
   emoji: string;
 }
+
 export interface Button extends DBButton {
   id: string;
   name: string;
 }
 
-interface GetButtonOptions {
+interface GetButtonsOptions {
   scopes?: Scope[];
   roles?: Role[];
-
-  offset?: number;
-  limit?: number;
 }
 
 export async function getButtons(
   db: Redis,
   interaction: Interaction,
 
-  options: GetButtonOptions = {}
+  options: GetButtonsOptions = {}
 ): Promise<Button[]> {
   const buttons: Button[] = [];
 
@@ -48,21 +49,16 @@ export async function getButtons(
 
   const buttonKeys: string[] = [];
 
+  const scans: string[] = [];
+
   for (const scope of scopes) {
     if (scope === "role") {
-      for (const role of options.roles) {
-        const keys = await db.scan(0, "MATCH", `${interaction.guild!.id}.${role.id}:*`);
-        if (keys[1].length === 0) continue;
-
-        buttonKeys.push(...keys[1]);
-      }
+      for (const role of options.roles) scans.push(`${interaction.guild!.id}.${role.id}:*`);
 
       continue;
     }
 
-    const keys = await db.scan(
-      0,
-      "MATCH",
+    scans.push(
       `${
         scope === "guild"
           ? interaction.guild!.id
@@ -73,19 +69,43 @@ export async function getButtons(
           : interaction.user.id
       }:*`
     );
-    if (keys[1].length === 0) continue;
-
-    buttonKeys.push(...keys[1]);
   }
 
-  const offset = options.offset ?? 0;
+  const scanPipeline = db.pipeline();
+  for (const scan of scans) scanPipeline.scan(0, "MATCH", scan);
 
-  for (const key of buttonKeys.slice(offset, options.limit ? offset + options.limit : undefined))
+  for (const [error, result] of await scanPipeline.exec()) {
+    if (error) throw error;
+
+    const [_, keys] = result as [string, string[]];
+    if (keys.length === 0) continue;
+
+    buttonKeys.push(...keys);
+  }
+
+  console.log(buttonKeys);
+
+  const hgetPipeline = db.pipeline();
+  for (const key of buttonKeys) {
+    hgetPipeline.hgetall(key);
+  }
+
+  (await hgetPipeline.exec()).forEach(([error, result], index) => {
+    if (error) throw error;
+
+    const button = result as DBButton | null;
+    if (!button) return;
+
     buttons.push({
-      id: key,
-      name: key.split(":")[1],
-      ...((await db.hgetall(key)) as unknown as DBButton),
+      id: buttonKeys[index],
+      name: buttonKeys[index].split(":")[1],
+      ...button,
     });
+  });
+
+  console.log(buttons);
+
+  buttons.sort((a, b) => a.created - b.created);
 
   return buttons;
 }
