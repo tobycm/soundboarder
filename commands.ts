@@ -54,7 +54,7 @@ commands.push({
     // if (file.duration > 15) return interaction.reply("File is too long. Max 15s.");
 
     if (!["guild", "channel", "role", "member", "user"].includes(scope)) return interaction.reply("Invalid scope.");
-    if (scope !== "user") if (!interaction.inGuild()) return interaction.reply("This scope can only be used in a server.");
+    if (scope !== "user" && !interaction.guild) return interaction.reply("This scope can only be used in a server.");
     if (scope === "role") if (!role) return interaction.reply("No role provided for role scope.");
     if (scope === "channel" && (!(interaction.member instanceof GuildMember) || !interaction.member.voice.channel?.id))
       return interaction.reply("You must be in a voice channel to use channel scope.");

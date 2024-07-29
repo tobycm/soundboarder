@@ -1,7 +1,9 @@
-import { GatewayIntentBits } from "discord.js";
+import { getVoiceConnection } from "@discordjs/voice";
+import { Events, GatewayIntentBits } from "discord.js";
 import { Redis } from "ioredis";
 import Soundboarder from "./Soundboarder";
 import commands from "./commands";
+import handleSoundboard from "./handleSoundboard";
 
 declare module "discord.js" {
   export interface Client {
@@ -19,7 +21,7 @@ const client = new Soundboarder({
 
 const admins = process.env.ADMINS?.split(",") || [];
 
-client.on("messageCreate", async (message) => {
+client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
 
   if (!admins.includes(message.author.id)) return;
@@ -36,7 +38,9 @@ client.on("messageCreate", async (message) => {
 });
 
 // Event: Interaction created
-client.on("interactionCreate", async (interaction) => {
+client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isButton()) return handleSoundboard(interaction);
+
   if (interaction.isAutocomplete()) {
     const command = commands.find((cmd) => cmd.data.name === interaction.commandName);
     if (!command) return;
@@ -57,6 +61,18 @@ client.on("interactionCreate", async (interaction) => {
     console.error(error);
     await interaction.reply("An error occurred while executing this command.");
   }
+});
+
+client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
+  if (newState.channel?.members.size != 1) return;
+
+  if (
+    oldState.channel?.members.size == 2 &&
+    oldState.channel.members.get(newState.client.user.id) &&
+    newState.channel.members.get(newState.client.user.id)
+  )
+    // alone in voice
+    getVoiceConnection(newState.guild.id)?.destroy();
 });
 
 if (!process.env.DISCORD_TOKEN) {
