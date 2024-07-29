@@ -1,11 +1,11 @@
 import { GatewayIntentBits } from "discord.js";
+import { Redis } from "ioredis";
 import Soundboarder from "./Soundboarder";
 import commands from "./commands";
-import { RedisClient } from "./common";
 
 declare module "discord.js" {
   export interface Client {
-    db: RedisClient;
+    db: Redis;
   }
 }
 
@@ -14,9 +14,7 @@ const client = new Soundboarder({
   discord: {
     intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildVoiceStates],
   },
-  redis: {
-    url: process.env.REDIS_URL,
-  },
+  redis: process.env.REDIS_URL ?? 6379,
 });
 
 const admins = process.env.ADMINS?.split(",") || [];

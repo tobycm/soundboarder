@@ -1,10 +1,9 @@
 import { Client, ClientOptions } from "discord.js";
-import { createClient } from "redis";
-import { RedisClient } from "./common";
+import { Redis, RedisOptions } from "ioredis";
 
 interface SoundboarderOptions {
   discord: ClientOptions;
-  redis: Parameters<typeof createClient>[0];
+  redis: string | number | RedisOptions;
 }
 
 export default class Soundboarder extends Client {
@@ -16,13 +15,13 @@ export default class Soundboarder extends Client {
       console.log(`Logged in as ${this.user.tag}`);
     });
 
-    this.db = createClient(options.redis);
+    // @ts-ignore
+    this.db = new Redis(options.redis);
+    this.db.on("connecting", () => console.debug("Connecting to Redis"));
+    this.db.on("connect", () => console.log("Connected to Redis"));
+
+    this.db.on("error", (error) => console.error("Redis error:", error));
   }
 
-  public async init(): Promise<void> {
-    await this.db.connect();
-    return;
-  }
-
-  db: RedisClient;
+  db: Redis;
 }

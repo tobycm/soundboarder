@@ -1,5 +1,5 @@
 import { AutocompleteInteraction, ChatInputCommandInteraction, GuildMember, SlashCommandBuilder } from "discord.js";
-import { getButtons, Scope } from "./common";
+import { getButtons, makeSoundboard, Scope } from "./common";
 
 interface Command {
   data: SlashCommandBuilder;
@@ -17,7 +17,9 @@ commands.push({
 
 const newCommandData = new SlashCommandBuilder().setName("new").setDescription("New soundboard button");
 newCommandData
-  .addStringOption((option) => option.setName("name").setDescription("Name of the soundboard button").setRequired(true))
+  .addStringOption((option) =>
+    option.setName("name").setDescription("Name of the soundboard button").setRequired(true).setMinLength(1).setMaxLength(40)
+  )
   .addAttachmentOption((option) => option.setName("file").setDescription("Sound file to play. Max 15s or 1MB").setRequired(true))
   // .addStringOption((option) => option.setName("emoji").setDescription("Emoji to use for the button").setRequired(false))
   .addStringOption((option) =>
@@ -44,15 +46,14 @@ commands.push({
     const role = interaction.options.getRole("role");
     // const emoji = interaction.options.getString("emoji");
 
+    if (name.length > 40) return interaction.reply("Name is too long. Max 40 characters.");
+
     if (!file) return interaction.reply("No file provided.");
-
-    if (!file.contentType?.startsWith("audio/") || !file.duration) return interaction.reply("File is not an audio file.");
-
+    if (!file.contentType?.startsWith("audio/")) return interaction.reply("File is not an audio file.");
     if (file.size > 1024 ** 2) return interaction.reply("File is too large. Max 1MB.");
-    if (file.duration > 15) return interaction.reply("File is too long. Max 15s.");
+    // if (file.duration > 15) return interaction.reply("File is too long. Max 15s.");
 
     if (!["guild", "channel", "role", "member", "user"].includes(scope)) return interaction.reply("Invalid scope.");
-
     if (scope !== "user") if (!interaction.inGuild()) return interaction.reply("This scope can only be used in a server.");
     if (scope === "role") if (!role) return interaction.reply("No role provided for role scope.");
     if (scope === "channel" && (!(interaction.member instanceof GuildMember) || !interaction.member.voice.channel?.id))
@@ -67,31 +68,29 @@ commands.push({
         : scope === "role"
         ? role?.id
         : scope === "member"
-        ? `${interaction.guild!.id}-${interaction.user.id}`
+        ? `${interaction.guild!.id}.${interaction.user.id}`
         : interaction.user.id
     }:${name}`;
 
-    interaction.client.db.rPush(
-      id,
-      JSON.stringify({
-        name,
-        file: file.url,
-        emoji: "🔊",
-      })
-    );
+    if (await interaction.client.db.exists(id)) return interaction.reply("Button already exists.");
 
-    // Do something with the file
+    await interaction.client.db.hset(id, {
+      file: file.url,
+      emoji: "🔊",
+    });
+
     await interaction.reply(`Created new soundboard button: ${name}`);
   },
 });
 
-const deleteCommandData = new SlashCommandBuilder().setName("delete").setDescription("Delete soundboard button");
+const soundboardCommandData = new SlashCommandBuilder().setName("soundboard").setDescription("Show soundboard");
 
 commands.push({
-  data: deleteCommandData,
+  data: soundboardCommandData,
   async run(interaction) {
     const scopes: Scope[] = ["user"];
-    if (interaction.inGuild()) scopes.push("guild", "channel", "role", "member");
+    if (interaction.inGuild()) scopes.push("guild", "role", "member");
+    if (interaction.member instanceof GuildMember && interaction.member.voice.channel) scopes.push("channel");
 
     const buttons = await getButtons(
       interaction.client.db,
@@ -100,7 +99,12 @@ commands.push({
       Array.from((interaction.member as GuildMember | undefined)?.roles.cache.values() ?? [])
     );
 
-    if (buttons.length === 0) return interaction.reply("No buttons found.");
+    if (buttons.length === 0) return interaction.reply("No buttons added. Use </new:1267256102685245560> to add a new button.");
+
+    interaction.reply({
+      content: "Soundboard",
+      components: [...makeSoundboard(buttons)],
+    });
   },
 });
 
