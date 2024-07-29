@@ -95,8 +95,13 @@ commands.push({
     const buttons = await getButtons(
       interaction.client.db,
       interaction,
-      scopes,
-      Array.from((interaction.member as GuildMember | undefined)?.roles.cache.values() ?? [])
+
+      {
+        scopes,
+        roles: Array.from((interaction.member as GuildMember | undefined)?.roles.cache.values() ?? []),
+
+        limit: 20,
+      }
     );
 
     if (buttons.length === 0) return interaction.reply("No buttons added. Use </new:1267256102685245560> to add a new button.");
@@ -107,5 +112,7 @@ commands.push({
     });
   },
 });
+
+const copyCommandData = new SlashCommandBuilder().setName("copy").setDescription("Copy a soundboard button");
 
 export default commands;

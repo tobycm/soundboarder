@@ -1,15 +1,8 @@
 import { getVoiceConnection } from "@discordjs/voice";
 import { Events, GatewayIntentBits } from "discord.js";
-import { Redis } from "ioredis";
 import Soundboarder from "./Soundboarder";
 import commands from "./commands";
 import handleSoundboard from "./handleSoundboard";
-
-declare module "discord.js" {
-  export interface Client {
-    db: Redis;
-  }
-}
 
 // Creating an instance of the Discord.js client
 const client = new Soundboarder({

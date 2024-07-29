@@ -20,12 +20,15 @@ export default async function handleSoundboard(interaction: ButtonInteraction) {
   if (!interaction.guild) return interaction.editReply("This command can only be used in a server.");
   if (!(interaction.member instanceof GuildMember)) return interaction.editReply("This command can only be used by a server member."); // should never happens tbh
 
+  if (interaction.user.id !== interaction.message.interaction.user.id) return interaction.editReply("This is not your soundboard lol.");
+
   if (!interaction.member.voice.channel) return interaction.editReply("You must be in a voice channel to use the soundboard.");
 
   const button = (await interaction.client.db.hgetall(interaction.customId)) as unknown as DBButton;
   if (!button) return interaction.editReply("Button not found in database. It may have been deleted.");
 
-  const resource = createAudioResource(button.file);
+  const resource = createAudioResource(button.file, { inlineVolume: true });
+  resource.volume.setVolume(0.5);
 
   let player = players.get(interaction.guild.id);
   if (player) {

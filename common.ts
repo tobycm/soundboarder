@@ -22,29 +22,39 @@ export interface Button extends DBButton {
   name: string;
 }
 
+interface GetButtonOptions {
+  scopes?: Scope[];
+  roles?: Role[];
+
+  offset?: number;
+  limit?: number;
+}
+
 export async function getButtons(
   db: Redis,
   interaction: Interaction,
 
-  scopes?: Scope[],
-  roles?: Role[]
+  options: GetButtonOptions = {}
 ): Promise<Button[]> {
   const buttons: Button[] = [];
 
+  let { scopes } = options;
+
   if (scopes === undefined) scopes = ["user"];
-  if (scopes.includes("role") && !roles?.length) throw new Error("Role scope requires at least a role.");
+
+  if ((scopes.length !== 1 || !scopes.includes("user")) && !interaction.guild) throw new Error("Guild scopes requires a guild.");
+
+  if (scopes.includes("role") && !options.roles?.length) throw new Error("Role scope requires at least a role.");
+
+  const buttonKeys: string[] = [];
 
   for (const scope of scopes) {
     if (scope === "role") {
-      for (const role of roles!) {
+      for (const role of options.roles) {
         const keys = await db.scan(0, "MATCH", `${interaction.guild!.id}.${role.id}:*`);
         if (keys[1].length === 0) continue;
-        for (const key of keys[1])
-          buttons.push({
-            id: key,
-            name: key.split(":")[1],
-            ...((await db.hgetall(key)) as unknown as DBButton),
-          });
+
+        buttonKeys.push(...keys[1]);
       }
 
       continue;
@@ -65,23 +75,39 @@ export async function getButtons(
     );
     if (keys[1].length === 0) continue;
 
-    for (const key of keys[1])
-      buttons.push({
-        id: key,
-        name: key.split(":")[1],
-        ...((await db.hgetall(key)) as unknown as DBButton),
-      });
+    buttonKeys.push(...keys[1]);
   }
+
+  const offset = options.offset ?? 0;
+
+  for (const key of buttonKeys.slice(offset, options.limit ? offset + options.limit : undefined))
+    buttons.push({
+      id: key,
+      name: key.split(":")[1],
+      ...((await db.hgetall(key)) as unknown as DBButton),
+    });
 
   return buttons;
 }
 
-export function makeSoundboard(buttons: Button[]): ActionRowBuilder<ButtonBuilder>[] {
+interface MakeSoundboardOptions {
+  style?: ButtonStyle;
+
+  offset?: number;
+}
+
+export function makeSoundboard(buttons: Button[], options: MakeSoundboardOptions = {}): ActionRowBuilder<ButtonBuilder>[] {
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   let row = new ActionRowBuilder<ButtonBuilder>();
 
   for (const button of buttons) {
-    row.addComponents(new ButtonBuilder().setCustomId(button.id).setLabel(button.name).setStyle(ButtonStyle.Primary).setEmoji(button.emoji));
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(button.id)
+        .setLabel(button.name)
+        .setStyle(options.style ?? ButtonStyle.Primary)
+        .setEmoji(button.emoji)
+    );
     if (row.components.length === 5) {
       rows.push(row);
       row = new ActionRowBuilder<ButtonBuilder>();
